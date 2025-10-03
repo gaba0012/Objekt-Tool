@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Projekt – Adresssuche & GWR</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body { background:#f8f9fa; }
+    #map { height: 320px; border:1px solid #ddd; border-radius:8px; }
+    .dropdown-menu { max-height: 240px; overflow:auto; z-index: 2000; }
+    hr.soft { border:0; border-top:1px solid #e9ecef; margin:.75rem 0 1.25rem; }
+    .section-title { font-weight:600; font-size:1.05rem; margin-bottom:.25rem; }
+    .label-pill { display:inline-block; background:#f1f3f5; border-radius:.5rem; padding:.15rem .55rem; }
+    .mono { font-variant-numeric: tabular-nums; }
+    .table-clean th { white-space:nowrap; font-weight:500; color:#495057; width:1%; }
+    .table-clean td { width:auto; }
+  </style>
+</head>
+<body>
+<div class="container py-4">
+  <h3 class="mb-3">Projekt – Adresssuche &amp; GWR-Autofill</h3>
+
+  <div class="card">
+    <div class="card-body">
+
+      <!-- Adresssuche -->
+      <div class="row mb-3">
+        <div class="col-lg-9">
+          <label class="form-label">Adresssuche</label>
+          <div class="input-group">
+            <span class="input-group-text">🔎</span>
+            <input type="text" class="form-control" id="searchBox" placeholder="Strasse, Nr, Ort …" autocomplete="off">
+          </div>
+          <div class="dropdown">
+            <div class="dropdown-menu w-100" id="searchMenu"></div>
+          </div>
+          <div class="form-text">Quelle: <a href="https://map.geo.admin.ch" target="_blank">geo.admin.ch</a></div>
+        </div>
+      </div>
+
+      <!-- Adresse kompakt -->
+      <div class="mb-3">
+        <div class="section-title">Adresse</div>
+        <div class="row g-3 align-items-center">
+          <div class="col-lg-6">
+            <div class="text-secondary small mb-1">Strasse und Hausnummer</div>
+            <div id="street_hnr" class="fw-semibold mono">–</div>
+          </div>
+          <div class="col-lg-3">
+            <div class="text-secondary small mb-1">Ort</div>
+            <div id="plz_ort" class="fw-semibold mono">–</div>
+          </div>
+          <div class="col-lg-1">
+            <div class="text-secondary small mb-1">Kanton</div>
+            <div><span id="canton" class="label-pill mono">–</span></div>
+          </div>
+          <div class="col-lg-2">
+            <div class="text-secondary small mb-1">Gemeindename</div>
+            <div id="gemeinde" class="fw-semibold mono">–</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LV95-Koordinaten & Höhe -->
+      <div class="mb-3">
+        <div class="section-title">Lage</div>
+        <dl class="row">
+          <dt class="col-md-4 col-lg-3">E-Gebäudekoordinate (LV95)</dt>
+          <dd class="col-md-8 col-lg-9"><span id="e_coord" class="mono">–</span></dd>
+          <dt class="col-md-4 col-lg-3">N-Gebäudekoordinate (LV95)</dt>
+          <dd class="col-md-8 col-lg-9"><span id="n_coord" class="mono">–</span></dd>
+          <dt class="col-md-4 col-lg-3">Erhebung [m]</dt>
+          <dd class="col-md-8 col-lg-9"><span id="elev" class="mono">–</span></dd>
+        </dl>
+      </div>
+
+      <!-- Karte -->
+      <div id="map" class="mb-4"></div>
+
+      <!-- Stammdaten -->
+      <div class="mb-3">
+        <div class="section-title">Stammdaten</div>
+        <dl class="row">
+          <dt class="col-md-4 col-lg-3">Amtliche Gebäudenummer</dt>
+          <dd class="col-md-8 col-lg-9"><span id="gebnr_amtlich" class="mono">–</span></dd>
+          <dt class="col-md-4 col-lg-3">Grundstücksnummer</dt>
+          <dd class="col-md-8 col-lg-9"><span id="parcel" class="mono">–</span></dd>
+          <dt class="col-md-4 col-lg-3">Eidg. Gebäudeidentifikator (EGID)</dt>
+          <dd class="col-md-8 col-lg-9"><span id="egid" class="mono">–</span></dd>
+          <dt class="col-md-4 col-lg-3">Gebäudefläche</dt>
+          <dd class="col-md-8 col-lg-9"><span id="geb_flaeche" class="mono">–</span></dd>
+        </dl>
+
+        <hr class="soft">
+
+        <dl class="row">
+          <dt class="col-md-4 col-lg-3">Gebäudekategorie</dt>
+          <dd class="col-md-8 col-lg-9"><span id="geb_kategorie">–</span></dd>
+          <dt class="col-md-4 col-lg-3">Gebäudeklasse</dt>
+          <dd class="col-md-8 col-lg-9"><span id="geb_klasse">–</span></dd>
+          <dt class="col-md-4 col-lg-3">Anzahl Stockwerke</dt>
+          <dd class="col-md-8 col-lg-9"><span id="anzahl_stockwerke" class="mono">–</span></dd>
+          <dt class="col-md-4 col-lg-3">Anzahl Wohnungen</dt>
+          <dd class="col-md-8 col-lg-9"><span id="anzahl_wohnungen" class="mono">–</span></dd>
+        </dl>
+      </div>
+
+      <hr class="soft">
+
+      <!-- Energie-Block: links = 1, rechts = 2 -->
+      <div class="row g-4">
+        <div class="col-md-6">
+          <div class="section-title">Heizung &amp; Warmwasser – System 1</div>
+          <table class="table table-sm table-clean mb-0">
+            <tbody>
+              <tr><th>Wärmeerzeuger Heizung&nbsp;1</th><td><span id="waermeerzeuger_hzg1">–</span></td></tr>
+              <tr><th>Energie-/Wärmequelle Heizung&nbsp;1</th><td><span id="energie_hzg1">–</span></td></tr>
+              <tr><th>Aktualisierungsdatum Heizung&nbsp;1</th><td><span id="akt_hzg1" class="mono">–</span></td></tr>
+              <tr><th>Wärmeerzeuger Warmwasser&nbsp;1</th><td><span id="waermeerzeuger_ww1">–</span></td></tr>
+              <tr><th>Energie-/Wärmequelle Warmwasser&nbsp;1</th><td><span id="energie_ww1">–</span></td></tr>
+              <tr><th>Aktualisierungsdatum Warmwasser&nbsp;1</th><td><span id="akt_ww1" class="mono">–</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="col-md-6">
+          <div class="section-title">Heizung &amp; Warmwasser – System 2</div>
+          <table class="table table-sm table-clean mb-0">
+            <tbody>
+              <tr><th>Wärmeerzeuger Heizung&nbsp;2</th><td><span id="waermeerzeuger_hzg2">–</span></td></tr>
+              <tr><th>Energie-/Wärmequelle Heizung&nbsp;2</th><td><span id="energie_hzg2">–</span></td></tr>
+              <tr><th>Aktualisierungsdatum Heizung&nbsp;2</th><td><span id="akt_hzg2" class="mono">–</span></td></tr>
+              <tr><th>Wärmeerzeuger Warmwasser&nbsp;2</th><td><span id="waermeerzeuger_ww2">–</span></td></tr>
+              <tr><th>Energie-/Wärmequelle Warmwasser&nbsp;2</th><td><span id="energie_ww2">–</span></td></tr>
+              <tr><th>Aktualisierungsdatum Warmwasser&nbsp;2</th><td><span id="akt_ww2" class="mono">–</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="mt-3">
+        <a id="gwrLink" href="#" target="_blank" class="link-secondary">GWR-Quell-Popup öffnen</a>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+<script src="assets/app.js" defer></script>
+</body>
+</html>
